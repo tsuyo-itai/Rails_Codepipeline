@@ -1,0 +1,32 @@
+<div class="d-flex align-items-center mt-4 mb-4">
+  <div class="ml-auto boards__linkBox">
+    <%= link_to '一覧', todos_path, class: 'btn btn-outline-dark' %>
+    <%= link_to '編集', edit_todo_path, class: 'btn btn-outline-dark' %>
+  </div>
+</div>
+
+<% if flash[:error_messages] %>
+  <div class="alert alert-danger">
+    <ul>
+      <% flash[:error_messages].each do |msg| %>
+        <li><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<%= form_for @todo do |f| %>
+  <div class="form-group">
+    <%= f.label :title, 'タイトル' %>
+    <%= f.text_field :title, class: 'form-control' %>
+  </div>
+  <div class="form-group">
+    <%= f.label :content, '内容' %>
+    <%= f.text_area :content, class: 'form-control', rows: 5 %>
+  </div>
+  <div class="form-group">
+    <%= f.label :status, 'ステータス' %>
+    <%= f.check_box :status, class: 'form-control',checked:false %>
+  </div>
+  <%= f.submit '保存', class: 'btn btn-primary' %>
+<% end %>

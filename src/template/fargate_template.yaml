@@ -1,0 +1,367 @@
+# https://qiita.com/tomokyu/items/d341ba1f4a1ad1149fe4
+# https://dev.classmethod.jp/articles/cloudformation-fargate/
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description:
+  Fargate and ALB Create
+
+
+# ------------------------------------------------------------#
+# Input Parameters
+# ------------------------------------------------------------#
+Parameters:
+  ProjectName:
+    Type: String
+    Default: my-stack
+
+  DBMasterUserName:
+    Type: String
+    Default: "root"
+    NoEcho: true
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: "must begin with a letter and contain only alphanumeric characters."
+
+  DBPassword: 
+    Type: String
+    Default: "password"
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: "[a-zA-Z0-9]*"
+    ConstraintDescription: "must contain only alphanumeric characters."
+
+#ECSContainerName
+  ECSWebAplContainerName:
+    Type: String
+    Default: "rails"
+
+#ECSImageName
+  ECSWebAplImageName:
+    Type: String
+    Default: "xxxxxxxxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/template-stack-ecr:latest"
+
+#ECSContainerName
+  ECSWebServerContainerName:
+    Type: String
+    Default: "nginx"
+
+#ECSImageName
+  ECSWebServerImageName:
+    Type: String
+    Default: "xxxxxxxxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/template-stack-ecr:latest"
+
+Resources:
+# ------------------------------------------------------------#
+# VPC
+# ------------------------------------------------------------#
+  # VPCの作成
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub vpc-${ProjectName}
+
+# ------------------------------------------------------------#
+# Subnet
+# ------------------------------------------------------------#
+  # パブリックサブネット
+  PubSub:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-pub-sub-1a
+
+  # パブリックサブネットのルートテーブル
+  PubSubRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-pub-sub-1a-rt
+
+  # ルートテーブルをサブネットに関連付け
+  AssoPubSubRT:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PubSub
+      RouteTableId: !Ref PubSubRT
+
+  # PubSub-インターネット間のルーティング
+  PubSubToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PubSubRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+
+  # プライベートサブネット
+  PriSub1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-pri-sub-1a
+
+  # プライベートサブネットのルートテーブル
+  PriSub1aRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-pri-sub-1a-rt
+
+  # ルートテーブルをサブネットに関連付け
+  AssoPriSub1aRT:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PriSub1a
+      RouteTableId: !Ref PriSub1aRT
+
+  # プライベートサブネット
+  PriSub1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-pri-sub-1c
+
+  # プライベートサブネットのルートテーブル
+  PriSub1cRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-pri-sub-1c-rt
+
+  # ルートテーブルをサブネットに関連付け
+  AssoPriSub1cRT:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PriSub1c
+      RouteTableId: !Ref PriSub1cRT
+
+# ------------------------------------------------------------#
+# IGW
+# ------------------------------------------------------------#
+  # インターネットゲートウェイの作成
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-igw
+
+  # IGWをVPCにアタッチ
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref IGW
+
+# ------------------------------------------------------------#
+#  DBInstance MySQL
+# ------------------------------------------------------------#
+  # DBインスタンス
+  DBInstance: 
+    Type: "AWS::RDS::DBInstance"
+    Properties: 
+      DBInstanceIdentifier: !Sub "${ProjectName}-rds"
+      Engine: MySQL
+      EngineVersion: "5.7.40"
+      DBInstanceClass: "db.t2.micro"
+      AllocatedStorage: "20"
+      StorageType: "gp2"
+      DBName: "myapps"
+      MasterUsername: !Ref DBMasterUserName
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      PubliclyAccessible: false
+      MultiAZ: false
+      # PreferredBackupWindow: "18:00-18:30"
+      # PreferredMaintenanceWindow: "sat:19:00-sat:19:30"
+      AutoMinorVersionUpgrade: false
+      # DBParameterGroupName: !Ref DBParameterGroup  
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      CopyTagsToSnapshot: true
+      BackupRetentionPeriod: 7
+      Tags: 
+        - Key: "Name"
+          Value: !Sub "${ProjectName}-rds-db"
+    DeletionPolicy: "Delete"
+
+  # DBサブネットグループ
+  RDSSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: !Sub "${ProjectName}-rds-subnetgroup"
+      DBSubnetGroupName: !Sub "${ProjectName}-rds-subnetgroup"
+      SubnetIds: 
+        - !Ref PriSub1a
+        - !Ref PriSub1c
+
+  # DBセキュリティグループ
+  RDSSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: !Sub "${ProjectName}-rds-sg"
+      GroupDescription: !Sub "${ProjectName}-rds-sg"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${ProjectName}-rds-sg"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+
+# ------------------------------------------------------------#
+# ECS Cluster
+# ------------------------------------------------------------#
+  ECSCluster:
+    Type: "AWS::ECS::Cluster"
+    Properties:
+      ClusterName: !Sub "${ProjectName}-cluster"
+
+# ------------------------------------------------------------#
+#  ECS LogGroup
+# ------------------------------------------------------------#
+  ECSLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "/ecs/logs/${ProjectName}-ecs-group"
+
+# TODO VPCの作成から諸々必要になるため今回は見送り
+# ------------------------------------------------------------#
+#  ECS Security Group
+# ------------------------------------------------------------#
+  # ECSのセキュリティグループ
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${ProjectName}-ecs-sg"
+      GroupDescription: Allow HTTP access
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # http
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+# ------------------------------------------------------------#
+#  ECS Task Execution Role
+# ------------------------------------------------------------#
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ECSTaskExecutionRolePolicy"
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+# ------------------------------------------------------------#
+#  ECS TaskDefinition
+# ------------------------------------------------------------#
+  ECSTaskDefinition:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      Cpu: 256
+      ExecutionRoleArn: !Ref ECSTaskExecutionRole
+      Family: !Sub "${ProjectName}-task"
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+
+#ContainerDefinitions
+      ContainerDefinitions:
+        ### Web Apl
+        - Name: !Sub "${ProjectName}-${ECSWebAplContainerName}"
+          Image: !Ref ECSWebAplImageName
+          Environment:
+            - Name: DB_USERNAME
+              Value: !Ref DBMasterUserName
+            - Name: DB_PASSWORD
+              Value: !Ref DBPassword
+            - Name: DB_HOST
+              Value: !GetAtt DBInstance.Endpoint.Address
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ECSLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: !Sub ${ProjectName}-${ECSWebAplContainerName}
+          MemoryReservation: 128
+          PortMappings:
+            - HostPort: 3000
+              Protocol: tcp
+              ContainerPort: 3000
+
+        ### Web Server
+        - Name: !Sub "${ProjectName}-${ECSWebServerContainerName}"
+          Image: !Ref ECSWebServerImageName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ECSLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: !Sub ${ProjectName}-${ECSWebServerContainerName}
+          MemoryReservation: 128
+          VolumesFrom: 
+            - SourceContainer: !Sub "${ProjectName}-${ECSWebAplContainerName}"
+          PortMappings:
+            - HostPort: 80
+              Protocol: tcp
+              ContainerPort: 80
+
+# ------------------------------------------------------------#
+#  ECS Service
+# ------------------------------------------------------------#
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+
+      NetworkConfiguration:
+       AwsvpcConfiguration:
+           AssignPublicIp: ENABLED
+           SecurityGroups:
+             - !Ref ECSSecurityGroup
+           Subnets:
+             - !Ref PubSub
+      ServiceName: !Sub "${ProjectName}-service"
+      TaskDefinition: !Ref ECSTaskDefinition
+
+Outputs:
+  DBInstanceEndpoint:
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub "${ProjectName}-rds-endpoint"

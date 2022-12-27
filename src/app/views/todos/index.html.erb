@@ -1,0 +1,37 @@
+<div class="d-flex align-items-center">
+  <h2 class="heading02"><span>TODO管理アプリ</span>Todo一覧</h2>
+  <div class="ml-auto">
+    <%= link_to '新規作成', new_todo_path, class: 'btn btn-outline-dark' %>
+  </div>
+</div>
+<% if flash[:notice] %>
+  <div class="alert alert-primary"><%= flash[:notice] %></div>
+<% end %>
+<table class="table table-hover">
+  <thead class="thead-dark">
+    <tr>
+      <th>ID</th>
+      <th>タイトル</th>
+      <th>内容</th>
+      <th>ステータス</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+
+  <% @todos.each do |todo| %>
+    <tr>
+      <th><%= todo.id %></th>
+      <th><%= todo.title %></th>
+      <th><%= todo.content %></th>
+      <% if todo.status %>
+        <th>完了</th>
+      <% else %>
+        <th>未完了</th>
+      <% end %>
+      <th><%= link_to '詳細', todo, class: 'btn btn-outline-dark' %></th>
+      <th><%= link_to '削除', todo, class: 'btn btn-outline-dark', method: :delete %></th>
+    </tr>
+  <% end %>
+</table>
+

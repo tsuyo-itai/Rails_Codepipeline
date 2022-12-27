@@ -1,0 +1,26 @@
+<div class="d-flex align-items-center mt-4 mb-4">
+  <div class="ml-auto boards__linkBox">
+    <%= link_to '一覧', todos_path, class: 'btn btn-outline-dark' %>
+    <%= link_to '編集', edit_todo_path, class: 'btn btn-outline-dark' %>
+  </div>
+</div>
+
+<%# 成功した場合のflush %>
+<% if flash[:notice] %>
+  <div class="alert alert-primary"><%= flash[:notice] %></div>
+<% end %>
+
+<%# 失敗した場合のflush %>
+<% if flash[:notice_error] %>
+  <div class="alert alert-danger"><%= flash[:notice_error] %></div>
+<% end %>
+
+<div class="card">
+  <div class="card-header">
+    <h4><%= @todo.title %></h4>
+  </div>
+  <div class="card-body">
+    <p class="card-text"><%= simple_format(@todo.content) %></p>
+    <p class="text-right font-weight-bold mr-10"><%= @todo.status %></p>
+  </div>
+</div>
