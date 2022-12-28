@@ -8,27 +8,37 @@ phases:
     commands:
       - echo -------- Logging in to Amazon ECR... --------
       - aws --version
+      # ECRへのログイン
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-
+      # DockerHubへのログイン
       - echo Logging in to Docker Hub...
       - echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
-
+      # 変数格納
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
-      - IMAGE_NAME="rails-codebuild-image"
-      - IMAGE_TAG=${COMMIT_HASH:=latest}
-      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_NAME
+      # これは環境変数に格納して良い
+      - RAILS_IMAGE_NAME="rails-codebuild-image"
+      - NGINX_IMAGE_NAME="nginx-codebuild-image"
 
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - RAILS_REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$RAILS_IMAGE_NAME
+      - NGINX_REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$NGINX_IMAGE_NAME
   build:
     commands:
       - echo -------- Build started on `date` --------
       - echo -------- Building the Docker image... --------
-      - docker build -t $IMAGE_NAME .
-      - docker tag $IMAGE_NAME:latest $REPOSITORY_URI:$IMAGE_TAG
+      # rails
+      - docker build -t $RAILS_IMAGE_NAME .
+      - docker tag $RAILS_IMAGE_NAME:latest $RAILS_REPOSITORY_URI:$IMAGE_TAG
+      # nginx
+      - docker build -t $NGINX_IMAGE_NAME .
+      - docker tag $NGINX_IMAGE_NAME:latest $NGINX_REPOSITORY_URI:$IMAGE_TAG
   post_build:
     commands:
       - echo -------- Build completed on `date` --------
       - echo -------- Pushing the Docker images... --------
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - echo [\{\"name\":\"hogehoge\",\"imageUri\":\"$REPOSITORY_URI:$IMAGE_TAG\"\}] > imagedefinitions.json
+      - docker push $RAILS_REPOSITORY_URI:$IMAGE_TAG
+      - docker push $NGINX_REPOSITORY_URI:$IMAGE_TAG
+      - echo [\{\"name\":\"$RAILS_IMAGE_NAME\",\"imageUri\":\"$RAILS_REPOSITORY_URI:$IMAGE_TAG\"\}] > imagedefinitions.json
+      - echo [\{\"name\":\"$NGINX_IMAGE_NAME\",\"imageUri\":\"$RAILS_REPOSITORY_URI:$IMAGE_TAG\"\}] >> imagedefinitions.json
 artifacts:
   files: imagedefinitions.json
