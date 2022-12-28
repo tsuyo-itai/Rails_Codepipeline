@@ -30,7 +30,7 @@ phases:
       - docker build -t $RAILS_IMAGE_NAME .
       - docker tag $RAILS_IMAGE_NAME:latest $RAILS_REPOSITORY_URI:$IMAGE_TAG
       # nginx
-      - docker build -t $NGINX_IMAGE_NAME .
+      - docker build -t $NGINX_IMAGE_NAME ./nginx/Dockerfile
       - docker tag $NGINX_IMAGE_NAME:latest $NGINX_REPOSITORY_URI:$IMAGE_TAG
   post_build:
     commands:
